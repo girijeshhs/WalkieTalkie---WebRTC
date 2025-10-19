@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FaSignInAlt, FaSignOutAlt, FaCopy } from 'react-icons/fa';
+import { FaSignInAlt, FaSignOutAlt, FaCopy, FaMicrophone, FaMicrophoneSlash, FaExclamationTriangle } from 'react-icons/fa';
 
 /**
  * Room Component
@@ -10,7 +10,11 @@ const Room = ({
   isConnected, 
   onJoinRoom, 
   onLeaveRoom,
-  connectionStatus 
+  connectionStatus,
+  microphoneGranted,
+  onRetryMicrophone,
+  error,
+  disabled = false
 }) => {
   const [roomInput, setRoomInput] = useState('');
   const [copied, setCopied] = useState(false);
@@ -46,6 +50,56 @@ const Room = ({
         Room Management
       </h2>
       
+      {/* Browser Not Supported Message */}
+      {disabled && (
+        <div className="mb-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+            <div className="flex items-center space-x-2">
+              <FaExclamationTriangle className="text-gray-500" />
+              <span className="text-sm text-gray-700">Browser not supported - please check the warning above</span>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Microphone Status */}
+      {connectionStatus === 'ready' && !disabled && (
+        <div className="mb-4">
+          {microphoneGranted ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div className="flex items-center space-x-2">
+                <FaMicrophone className="text-green-500" />
+                <span className="text-sm text-green-700 font-medium">Microphone access granted</span>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <FaMicrophoneSlash className="text-yellow-500" />
+                  <span className="text-sm text-yellow-700 font-medium">Microphone access required</span>
+                </div>
+                <button
+                  onClick={onRetryMicrophone}
+                  className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors text-sm font-medium"
+                >
+                  Grant Access
+                </button>
+              </div>
+              <p className="text-xs text-yellow-600 mt-2">
+                Click "Grant Access" and allow microphone permission when prompted.
+                {navigator.userAgent.includes('Safari') && navigator.userAgent.includes('Mobile') && 
+                  ' On iPhone, make sure you\'re using Safari or Chrome.'
+                }
+                {/iPad|iPhone|iPod/.test(navigator.userAgent) &&
+                  ' On iOS devices, you may need to tap the button first before granting permission.'
+                }
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+      
       {!isConnected ? (
         <div className="space-y-4">
           <div>
@@ -61,14 +115,14 @@ const Room = ({
                 onKeyPress={handleKeyPress}
                 placeholder="e.g., room-123"
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-                disabled={connectionStatus === 'disconnected'}
+                disabled={connectionStatus === 'disconnected' || disabled}
               />
               <button
                 onClick={handleJoin}
-                disabled={!roomInput.trim() || connectionStatus === 'disconnected'}
+                disabled={!roomInput.trim() || connectionStatus === 'disconnected' || disabled}
                 className={`
                   px-6 py-2 rounded-lg font-medium transition-all
-                  ${!roomInput.trim() || connectionStatus === 'disconnected'
+                  ${!roomInput.trim() || connectionStatus === 'disconnected' || disabled
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-blue-500 text-white hover:bg-blue-600 active:scale-95'
                   }

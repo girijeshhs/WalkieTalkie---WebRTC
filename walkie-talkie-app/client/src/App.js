@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import useWalkieTalkie from './hooks/useWalkieTalkie';
 import Room from './components/Room';
 import PushToTalkButton from './components/PushToTalkButton';
@@ -12,6 +12,8 @@ import './App.css';
  */
 function App() {
   const audioRef = useRef(null);
+  const [browserSupported, setBrowserSupported] = useState(true);
+  const [browserWarning, setBrowserWarning] = useState('');
   
   const {
     roomId,
@@ -21,12 +23,60 @@ function App() {
     peerTransmitting,
     error,
     participantCount,
+    microphoneGranted,
     joinRoom,
     leaveRoom,
     startTransmitting,
     stopTransmitting,
     setAudioElement,
+    retryMicrophoneAccess,
   } = useWalkieTalkie();
+
+  // Check browser compatibility on mount
+  useEffect(() => {
+    const checkBrowserSupport = () => {
+      const userAgent = navigator.userAgent;
+      const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+      const isChrome = /Chrome|CriOS/.test(userAgent);
+      const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
+      const isAndroid = /Android/.test(userAgent);
+      
+      console.log('Browser detection:', { userAgent, isIOS, isChrome, isSafari, isAndroid });
+      
+      // Check for basic WebRTC support
+      const hasWebRTC = !!(window.RTCPeerConnection || window.webkitRTCPeerConnection);
+      
+      console.log('WebRTC support:', { hasWebRTC });
+      
+      if (!hasWebRTC) {
+        setBrowserSupported(false);
+        setBrowserWarning('Your browser doesn\'t support WebRTC. Please use a modern browser.');
+        return;
+      }
+      
+      // For mobile devices (iOS or Android), always assume supported
+      // mediaDevices API may not be available until user interaction on mobile
+      if (isIOS || isAndroid) {
+        console.log('Mobile device detected - assuming WebRTC support');
+        setBrowserSupported(true);
+        return;
+      }
+      
+      // For desktop, check mediaDevices
+      const hasMediaDevices = !!navigator.mediaDevices;
+      console.log('Desktop device - mediaDevices available:', hasMediaDevices);
+      
+      if (!hasMediaDevices) {
+        setBrowserSupported(false);
+        setBrowserWarning('Your browser doesn\'t support microphone access. Please use a modern browser.');
+        return;
+      }
+      
+      setBrowserSupported(true);
+    };
+    
+    checkBrowserSupport();
+  }, []);
 
   // Set audio element reference when component mounts
   useEffect(() => {
@@ -51,12 +101,30 @@ function App() {
           </p>
         </header>
 
-        {/* Error Display */}
-        {error && (
+        {/* Browser Compatibility Warning */}
+        {!browserSupported && (
           <div className="max-w-2xl mx-auto mb-6">
             <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded">
-              <p className="font-medium">Error</p>
-              <p className="text-sm">{error}</p>
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">Browser Not Supported</h3>
+                  <p className="text-sm text-red-700 mt-1">{browserWarning}</p>
+                  <div className="mt-2">
+                    <p className="text-xs text-red-600">Recommended browsers:</p>
+                    <ul className="text-xs text-red-600 list-disc list-inside mt-1">
+                      <li>Chrome (Desktop & Mobile)</li>
+                      <li>Firefox (Desktop & Mobile)</li>
+                      <li>Safari on iOS 11+</li>
+                      <li>Edge/Chrome on Android</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -71,6 +139,10 @@ function App() {
               onJoinRoom={joinRoom}
               onLeaveRoom={leaveRoom}
               connectionStatus={connectionStatus}
+              microphoneGranted={microphoneGranted}
+              onRetryMicrophone={retryMicrophoneAccess}
+              error={error}
+              disabled={!browserSupported}
             />
             
             <ConnectionStatus

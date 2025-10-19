@@ -28,6 +28,26 @@ class WebRTCManager {
   async initializeLocalStream() {
     try {
       console.log('Initializing local audio stream...');
+      console.log('Browser info:', navigator.userAgent);
+      
+      // Check if mediaDevices API is available
+      if (!navigator.mediaDevices) {
+        // On iOS, mediaDevices might not be available until after user interaction
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+          console.log('iOS detected, mediaDevices not available yet - this is expected');
+          throw new Error('Please tap "Grant Access" to enable microphone. iOS requires user interaction first.');
+        }
+        throw new Error('Media devices API not available. Please refresh the page and try again.');
+      }
+      
+      if (!navigator.mediaDevices.getUserMedia) {
+        // Try fallback for older browsers
+        if (navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia) {
+          throw new Error('Legacy getUserMedia detected. Please update your browser to a modern version.');
+        } else {
+          throw new Error('getUserMedia not supported. Please use Chrome, Firefox, or Safari on iOS 11+.');
+        }
+      }
       
       // Audio constraints with echo cancellation and noise suppression
       const constraints = {
@@ -49,7 +69,21 @@ class WebRTCManager {
       return this.localStream;
     } catch (error) {
       console.error('Error accessing microphone:', error);
-      throw error;
+      
+      // Provide more specific error messages for common issues
+      if (error.name === 'NotAllowedError') {
+        throw new Error('Microphone access denied. Please allow microphone access in your browser settings.');
+      } else if (error.name === 'NotFoundError') {
+        throw new Error('No microphone found. Please check your microphone connection.');
+      } else if (error.name === 'NotSupportedError') {
+        throw new Error('Microphone access not supported in this browser. Please use Chrome, Firefox, or Safari.');
+      } else if (error.name === 'SecurityError') {
+        throw new Error('Microphone access blocked. Please use HTTPS or allow microphone access.');
+      } else if (error.message.includes('Media devices API not available')) {
+        throw new Error('Your browser doesn\'t support WebRTC. Please update to iOS 11+ and use Safari or Chrome.');
+      } else {
+        throw error;
+      }
     }
   }
 

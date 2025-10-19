@@ -15,6 +15,7 @@ const useWalkieTalkie = () => {
   const [peerTransmitting, setPeerTransmitting] = useState(false);
   const [error, setError] = useState(null);
   const [participantCount, setParticipantCount] = useState(0);
+  const [microphoneGranted, setMicrophoneGranted] = useState(false);
   
   const webRTCManagerRef = useRef(null);
   const audioElementRef = useRef(null);
@@ -35,12 +36,44 @@ const useWalkieTalkie = () => {
       reconnectionDelay: 1000,
     });
 
-    socketInstance.on('connect', () => {
+    socketInstance.on('connect', async () => {
       console.log('Socket connected');
-      setConnectionStatus('ready');
-    });
-
-    socketInstance.on('disconnect', () => {
+      
+      // Don't try to initialize WebRTC on connect for mobile devices
+      // Mobile browsers require explicit user interaction before accessing mediaDevices
+      const isMobile = /iPad|iPhone|iPod|Android/i.test(navigator.userAgent);
+      
+      if (isMobile) {
+        console.log('Mobile device detected - skipping auto WebRTC initialization');
+        console.log('User must tap "Grant Access" button to enable microphone');
+        setMicrophoneGranted(false);
+        setConnectionStatus('ready');
+        setError('Tap "Grant Access" to enable microphone access.');
+        return;
+      }
+      
+      // For desktop, try to initialize WebRTC immediately
+      try {
+        if (!webRTCManagerRef.current) {
+          await initializeWebRTC(socketInstance);
+        }
+        setMicrophoneGranted(true);
+        setConnectionStatus('ready');
+      } catch (error) {
+        console.error('Failed to initialize WebRTC on connect:', error);
+        setMicrophoneGranted(false);
+        
+        // Check if it's a browser compatibility issue
+        if (error.message.includes('Media devices API not available')) {
+          setError('Your browser doesn\'t support WebRTC. Please update to iOS 11+ and use Safari or Chrome.');
+        } else if (error.message.includes('user interaction first')) {
+          setError('Tap "Grant Access" to enable microphone. iOS requires user interaction first.');
+        } else {
+          setError('Microphone access required. Please grant permission when prompted.');
+        }
+        setConnectionStatus('ready'); // Still allow room joining, but show error
+      }
+    });    socketInstance.on('disconnect', () => {
       console.log('Socket disconnected');
       setConnectionStatus('disconnected');
       setIsConnected(false);
@@ -175,7 +208,7 @@ const useWalkieTalkie = () => {
     setError(null);
 
     try {
-      // Join the room via socket first
+      // Join the room via socket
       socket.emit('join-room', roomIdToJoin, async (response) => {
         if (response.success) {
           console.log('Joined room successfully:', response);
@@ -184,22 +217,11 @@ const useWalkieTalkie = () => {
           setIsConnected(true);
           setParticipantCount(response.totalParticipants);
           
-          // Now try to initialize WebRTC after successfully joining
-          try {
-            if (!webRTCManagerRef.current) {
-              await initializeWebRTC(socket);
-            }
-            
-            if (response.participants.length === 0) {
-              setConnectionStatus('waiting');
-            } else {
-              setConnectionStatus('connecting');
-              // We're the second person, so we wait for an offer
-            }
-          } catch (webRTCError) {
-            console.error('WebRTC initialization failed:', webRTCError);
-            setError('Joined room but microphone access failed. Please check permissions and refresh the page.');
-            setConnectionStatus('ready'); // Allow staying in room but show warning
+          if (response.participants.length === 0) {
+            setConnectionStatus('waiting');
+          } else {
+            setConnectionStatus('connecting');
+            // We're the second person, so we wait for an offer
           }
         } else {
           setError(response.message || 'Failed to join room');
@@ -268,6 +290,34 @@ const useWalkieTalkie = () => {
     }
   }, [socket]);
 
+  // Retry microphone access
+  const retryMicrophoneAccess = useCallback(async () => {
+    if (!socket) return;
+    
+    setError(null);
+    try {
+      if (!webRTCManagerRef.current) {
+        await initializeWebRTC(socket);
+      }
+      setMicrophoneGranted(true);
+      console.log('Microphone access granted');
+    } catch (error) {
+      console.error('Failed to initialize WebRTC on retry:', error);
+      setMicrophoneGranted(false);
+      
+      // Provide specific error messages
+      if (error.message.includes('Media devices API not supported')) {
+        setError('Browser not supported. Please use Chrome, Firefox, or Safari on iOS 11+.');
+      } else if (error.message.includes('user interaction first')) {
+        setError('Tap "Grant Access" to enable microphone. iOS requires user interaction first.');
+      } else if (error.message.includes('NotAllowedError') || error.message.includes('denied')) {
+        setError('Microphone access denied. Please check your browser permissions.');
+      } else {
+        setError('Microphone access failed. Please try a different browser.');
+      }
+    }
+  }, [socket]);
+
   // Set audio element reference
   const setAudioElement = useCallback((element) => {
     audioElementRef.current = element;
@@ -282,6 +332,7 @@ const useWalkieTalkie = () => {
     peerTransmitting,
     error,
     participantCount,
+    microphoneGranted,
     
     // Actions
     joinRoom,
@@ -289,6 +340,7 @@ const useWalkieTalkie = () => {
     startTransmitting,
     stopTransmitting,
     setAudioElement,
+    retryMicrophoneAccess,
   };
 };
 
