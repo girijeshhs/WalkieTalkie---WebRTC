@@ -223,3 +223,11 @@ For issues or questions:
 ---
 
 **Enjoy your local walkie-talkie experience! 🎙️**
+
+# Option 2: Add Chrome Flag to Allow Insecure Origins (For Both Desktop & Mobile)
+# On Desktop:
+# Open a new Chrome tab and go to: chrome://flags/#unsafely-treat-insecure-origin-as-secure
+# Find the flag "Insecure origins treated as secure"
+# Add: http://192.168.1.5:3000
+# Set it to "Enabled"
+# Click "Relaunch" to restart Chrome

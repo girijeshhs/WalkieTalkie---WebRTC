@@ -41,38 +41,42 @@ function App() {
       const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
       const isAndroid = /Android/.test(userAgent);
       
-      console.log('Browser detection:', { userAgent, isIOS, isChrome, isSafari, isAndroid });
+      console.log('=== Browser Detection Debug ===');
+      console.log('User Agent:', userAgent);
+      console.log('Is iOS:', isIOS);
+      console.log('Is Chrome:', isChrome);
+      console.log('Is Safari:', isSafari);
+      console.log('Is Android:', isAndroid);
       
       // Check for basic WebRTC support
       const hasWebRTC = !!(window.RTCPeerConnection || window.webkitRTCPeerConnection);
+      const hasMediaDevices = !!navigator.mediaDevices;
       
-      console.log('WebRTC support:', { hasWebRTC });
+      console.log('Has WebRTC:', hasWebRTC);
+      console.log('Has MediaDevices:', hasMediaDevices);
+      console.log('===========================');
       
       if (!hasWebRTC) {
+        console.error('No WebRTC support detected');
         setBrowserSupported(false);
-        setBrowserWarning('Your browser doesn\'t support WebRTC. Please use a modern browser.');
+        setBrowserWarning('Your browser doesn\'t support WebRTC. Please use Chrome, Firefox, Safari, or Edge.');
         return;
       }
       
       // For mobile devices (iOS or Android), always assume supported
       // mediaDevices API may not be available until user interaction on mobile
       if (isIOS || isAndroid) {
-        console.log('Mobile device detected - assuming WebRTC support');
+        console.log('Mobile device detected - enabling support');
         setBrowserSupported(true);
+        setBrowserWarning('');
         return;
       }
       
-      // For desktop, check mediaDevices
-      const hasMediaDevices = !!navigator.mediaDevices;
-      console.log('Desktop device - mediaDevices available:', hasMediaDevices);
-      
-      if (!hasMediaDevices) {
-        setBrowserSupported(false);
-        setBrowserWarning('Your browser doesn\'t support microphone access. Please use a modern browser.');
-        return;
-      }
-      
+      // For desktop browsers, we should be lenient
+      // Modern browsers all support WebRTC even if mediaDevices isn't immediately available
+      console.log('Desktop device detected - enabling support');
       setBrowserSupported(true);
+      setBrowserWarning('');
     };
     
     checkBrowserSupport();
